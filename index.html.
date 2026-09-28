@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Football Quiz</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#081321;color:#f4f7fb;font-family:Arial,sans-serif}
+header{padding:20px;text-align:center;background:#101f32;border-bottom:2px solid #12c879}
+header h1{margin:0;font-size:25px}
+header span{color:#12c879}
+main{max-width:600px;margin:auto;padding:20px}
+.card{background:#122238;border:1px solid #29415d;border-radius:16px;padding:20px;margin:18px 0}
+h2{margin-top:0}
+.sub{color:#b5c4d5}
+.streak{font-size:28px;color:#ffad32;font-weight:bold;text-align:center}
+button{border:0;border-radius:10px;padding:15px;width:100%;font-size:16px;font-weight:bold;cursor:pointer;margin:7px 0;background:#12c879;color:#062016}
+button.answer{background:#20344d;color:white;border:1px solid #3c5571;text-align:left}
+button.answer:disabled{opacity:1}
+button.answer.correct{background:#176b49;border-color:#12c879}
+button.answer.wrong{background:#793c40;border-color:#ff7373}
+button:disabled{cursor:default}
+.progress{height:8px;background:#2a3d55;border-radius:8px;overflow:hidden;margin:14px 0}
+.progress div{height:100%;width:0;background:#12c879;transition:width .2s}
+.small{font-size:13px;color:#b5c4d5}
+.hidden{display:none}
+</style>
+</head>
+<body>
+<header><h1>⚽ FOOTBALL <span>QUIZ</span></h1></header>
+<main>
+<section class="card" id="home">
+<p class="streak">🔥 <span id="streak">0</span> dni</p>
+<p class="sub" style="text-align:center">Twoja seria rozwiązywania quizów</p>
+<h2>⚽ Quiz dnia</h2>
+<p class="sub">5 pytań piłkarskich. Sprawdź swoją wiedzę i zdobywaj punkty!</p>
+<button onclick="startQuiz()">ROZPOCZNIJ QUIZ</button>
+<p class="small" style="text-align:center">Ukończ quiz, aby utrzymać serię.</p>
+</section>
+<section class="card hidden" id="game">
+<p class="small" id="number"></p>
+<div class="progress"><div id="bar"></div></div>
+<h2 id="question"></h2>
+<div id="answers"></div>
+<p id="feedback" aria-live="polite"></p>
+<button id="next" class="hidden" onclick="nextQuestion()">DALEJ →</button>
+</section>
+<section class="card hidden" id="result">
+<h2>🏆 Twój wynik</h2>
+<p id="score" style="font-size:28px;font-weight:bold"></p>
+<p id="resultText"></p>
+<button onclick="showHome()">WRÓĆ DO STRONY GŁÓWNEJ</button>
+</section>
+<section class="card">
+<h2>📊 Twoje statystyki</h2>
+<p>Łącznie punktów: <strong id="points">0</strong></p>
+<p>Ukończone quizy: <strong id="completed">0</strong></p>
+</section>
+</main>
+<script>
+const bank=[
+{q:"Który klub ma najwięcej tytułów mistrza Hiszpanii?",a:["Real Madryt","FC Barcelona","Valencia","Sevilla"],c:0},
+{q:"Z jakiego kraju pochodzi Lionel Messi?",a:["Brazylia","Hiszpania","Argentyna","Urugwaj"],c:2},
+{q:"Ilu zawodników jednej drużyny gra na boisku?",a:["10","11","12","9"],c:1},
+{q:"Jak nazywa się stadion FC Barcelony?",a:["Santiago Bernabéu","Anfield","Camp Nou","San Siro"],c:2},
+{q:"Który kraj wygrał mundial w 2022 roku?",a:["Francja","Argentyna","Brazylia","Niemcy"],c:1},
+{q:"W jakim klubie grał Cristiano Ronaldo przed Realem Madryt?",a:["Manchester United","Juventus","Sporting","Chelsea"],c:0},
+{q:"Ile minut trwa podstawowy czas meczu piłki nożnej?",a:["80","90","100","60"],c:1},
+{q:"Który klub gra na Anfield?",a:["Arsenal","Liverpool","Everton","Chelsea"],c:1},
+{q:"Jak nazywa się nagroda dla najlepszego piłkarza świata?",a:["Złoty But","Złota Piłka","Puchar Europy","Złota Rękawica"],c:1},
+{q:"W jakiej lidze gra Bayern Monachium?",a:["La Liga","Serie A","Bundesliga","Ligue 1"],c:2},
+{q:"Który piłkarz jest znany jako Król Futbolu?",a:["Pelé","Zidane","Maradona","Ronaldo"],c:0},
+{q:"Który klub zdobył Ligę Mistrzów w 2024 roku?",a:["Borussia Dortmund","Real Madryt","Manchester City","PSG"],c:1},
+{q:"Z ilu metrów wykonuje się rzut karny?",a:["9","10","11","12"],c:2},
+{q:"Który klub pochodzi z Mediolanu?",a:["Inter","Roma","Napoli","Lazio"],c:0},
+{q:"Jakiego koloru kartkę pokazuje sędzia przy wykluczeniu?",a:["Żółtą","Niebieską","Czerwoną","Zieloną"],c:2}
+];
+const today=()=>{const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")};
+const dayNum=()=>Math.floor(Date.parse(today()+"T00:00:00Z")/86400000);
+let questions=[],index=0,score=0,answered=false;
+function get(key,def){try{return JSON.parse(localStorage.getItem(key))??def}catch(e){return def}}
+function set(key,val){localStorage.setItem(key,JSON.stringify(val))}
+function refresh(){
+document.getElementById("streak").textContent=get("fqStreak",0);
+document.getElementById("points").textContent=get("fqPoints",0);
+document.getElementById("completed").textContent=get("fqCompleted",0);
+}
+function startQuiz(){
+if(get("fqDone","")===today()){alert("Dzisiejszy quiz jest już ukończony. Wróć jutro po kolejny!");return}
+const start=dayNum()%bank.length;
+questions=Array.from({length:5},(_,i)=>bank[(start+i)%bank.length]);
+index=0;score=0;
+document.getElementById("home").classList.add("hidden");
+document.getElementById("result").classList.add("hidden");
+document.getElementById("game").classList.remove("hidden");
+showQuestion();
+}
+function showQuestion(){
+answered=false;
+const q=questions[index];
+document.getElementById("number").textContent="PYTANIE "+(index+1)+" / 5";
+document.getElementById("bar").style.width=(index/5*100)+"%";
+document.getElementById("question").textContent=q.q;
+document.getElementById("feedback").textContent="";
+document.getElementById("next").classList.add("hidden");
+const box=document.getElementById("answers");box.innerHTML="";
+q.a.forEach((answer,i)=>{
+const b=document.createElement("button");b.className="answer";b.textContent=String.fromCharCode(65+i)+". "+answer;
+b.onclick=()=>choose(i,b);box.appendChild(b);
+});
+}
+function choose(i,button){
+if(answered)return;answered=true;
+const q=questions[index];
+const buttons=document.querySelectorAll(".answer");
+buttons.forEach((b,j)=>{b.disabled=true;if(j===q.c)b.classList.add("correct")});
+if(i===q.c){score++;document.getElementById("feedback").textContent="✅ Brawo! Poprawna odpowiedź."; }
+else{button.classList.add("wrong");document.getElementById("feedback").textContent="❌ Niestety, poprawna odpowiedź to: "+q.a[q.c];}
+document.getElementById("bar").style.width=((index+1)/5*100)+"%";
+document.getElementById("next").classList.remove("hidden");
+document.getElementById("next").textContent=index===4?"ZOBACZ WYNIK":"DALEJ →";
+}
+function nextQuestion(){if(!answered)return;if(index<4){index++;showQuestion()}else finish()}
+function finish(){
+const last=get("fqLast","");
+let streak=get("fqStreak",0);
+if(last!==today()){
+const yesterday=new Date(Date.now()-86400000);
+const y=yesterday.getFullYear()+"-"+String(yesterday.getMonth()+1).padStart(2,"0")+"-"+String(yesterday.getDate()).padStart(2,"0");
+streak=last===y?streak+1:1;
+set("fqStreak",streak);set("fqLast",today());
+set("fqDone",today());
+set("fqPoints",get("fqPoints",0)+score*10);
+set("fqCompleted",get("fqCompleted",0)+1);
+}
+document.getElementById("game").classList.add("hidden");
+document.getElementById("result").classList.remove("hidden");
+document.getElementById("score").textContent=score+" / 5 punktów quizu";
+document.getElementById("resultText").textContent="Zdobywasz "+(score*10)+" pkt! 🔥 Twoja seria: "+streak+" dni.";
+refresh();
+}
+function showHome(){document.getElementById("result").classList.add("hidden");document.getElementById("home").classList.remove("hidden");refresh()}
+refresh();
+</script>
+</body>
+</html>
